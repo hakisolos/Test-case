@@ -150,73 +150,122 @@ async function Abhiy() {
     try {
       conn.ev.on("creds.update", saveCreds);
 
-      conn.ev.on("group-participants.update", async (data) => {
-        Greetings(data, conn);
-      });
+conn.ev.on("group-participants.update", async (data) => {
+  // When a new member joins the group
+  if (data.action === 'add') {
+    const groupMetadata = await conn.groupMetadata(data.id);
+    const groupName = groupMetadata.subject;
+    const newMember = data.participants[0];
+    
+    // Send a welcome message with a thumbnail
+    await conn.sendMessage(
+      data.id,
+      {
+        text: `Welcome to *${groupName}*, @${newMember.split('@')[0]}! 🎉`,
+        mentions: [newMember],
+        contextInfo: {
+          externalAdReply: {
+            title: "ʜᴇʏ ᴘᴏᴏᴋɪᴇ",
+            body: "We hope you have a great time here.",
+            sourceUrl: "",
+            mediaUrl: "",
+            mediaType: 1,
+            showAdAttribution: true,
+            renderLargerThumbnail: false,
+            thumbnailUrl: "https://files.catbox.moe/mnp025.jpg",  // Add the thumbnail URL here
+          },
+        },
+      }
+    );
+  }
 
-      conn.ev.removeAllListeners("messages.upsert");
-      conn.ev.on("messages.upsert", async (m) => {
-        if (m.type !== "notify") return;
-        let ms = m.messages[0];
-        let msg = await serialize(JSON.parse(JSON.stringify(ms)), conn);
+  // When a member leaves the group
+  if (data.action === 'remove') {
+    const groupMetadata = await conn.groupMetadata(data.id);
+    const groupName = groupMetadata.subject;
+    const leavingMember = data.participants[0];
+    
+    // Send a goodbye message with a thumbnail
+    await conn.sendMessage(
+      data.id,
+      {
+        text: `Goodbye, @${leavingMember.split('@')[0]}! 😢 You will not be missed from *${groupName}*.`,
+        mentions: [leavingMember],
+        contextInfo: {
+          externalAdReply: {
+            title: "Sorry to See You Go!",
+            body: "We hope to see you again.",
+            sourceUrl: "",
+            mediaUrl: "",
+            mediaType: 1,
+            showAdAttribution: true,
+            renderLargerThumbnail: false,
+            thumbnailUrl: "https://files.catbox.moe/mnp025.jpg",  // Add the thumbnail URL here
+          },
+        },
+      }
+    );
+  }
+});
 
-        if (!msg.message) return;
+conn.ev.removeAllListeners("messages.upsert");
+conn.ev.on("messages.upsert", async (m) => {
+  if (m.type !== "notify") return;
+  let ms = m.messages[0];
+  let msg = await serialize(JSON.parse(JSON.stringify(ms)), conn);
 
-        let text_msg = msg.body;
-        if (text_msg && config.LOGS) {
-          console.log(
-            `At : ${
-              msg.from.endsWith("@g.us")
-                ? (await conn.groupMetadata(msg.from)).subject
-                : msg.from
-            }\nFrom : ${msg.sender}\nMessage:${text_msg}`
-          );
-        }
+  if (!msg.message) return;
 
-        events.commands.map(async (command) => {
-          if (
-            command.fromMe &&
-            !config.SUDO?.split(",").includes(
-              msg.sender?.split("@")[0] || !msg.isSelf
-            )
-          )
-            return;
+  let text_msg = msg.body;
+  if (text_msg && config.LOGS) {
+    console.log(
+      `At : ${
+        msg.from.endsWith("@g.us")
+          ? (await conn.groupMetadata(msg.from)).subject
+          : msg.from
+      }\nFrom : ${msg.sender}\nMessage:${text_msg}`
+    );
+  }
 
-          let comman;
-          if (text_msg) {
-            comman = text_msg.trim().split(/ +/)[0];
-            msg.prefix = new RegExp(config.HANDLERS).test(text_msg)
-              ? text_msg.split("").shift()
-              : ",";
-          }
+  events.commands.map(async (command) => {
+    if (
+      command.fromMe &&
+      !config.SUDO?.split(",").includes(
+        msg.sender?.split("@")[0] || !msg.isSelf
+      )
+    )
+      return;
 
-          if (command.pattern && command.pattern.test(comman)) {
-            var match;
-            try {
-              match = text_msg.replace(new RegExp(comman, "i"), "").trim();
-            } catch {
-              match = false;
-            }
+    let comman;
+    if (text_msg) {
+      comman = text_msg.trim().split(/ +/)[0];
+      msg.prefix = new RegExp(config.HANDLERS).test(text_msg)
+        ? text_msg.split("").shift()
+        : ",";
+    }
 
-            whats = new Message(conn, msg, ms);
-            command.function(whats, match, msg, conn);
-          } else if (text_msg && command.on === "text") {
-            whats = new Message(conn, msg, ms);
-            command.function(whats, text_msg, msg, conn, m);
-          }
-        });
-      });
-    } catch (e) {
-      console.log(e.stack + "\n\n\n\n\n" + JSON.stringify(msg));
+    if (command.pattern && command.pattern.test(comman)) {
+      var match;
+      try {
+        match = text_msg.replace(new RegExp(comman, "i"), "").trim();
+      } catch {
+        match = false;
+      }
+
+      whats = new Message(conn, msg, ms);
+      command.function(whats, match, msg, conn);
+    } else if (text_msg && command.on === "text") {
+      whats = new Message(conn, msg, ms);
+      command.function(whats, text_msg, msg, conn, m);
     }
   });
+});
 
-  process.on("uncaughtException", async (err) => {
-    let error = err.message;
-    console.log(err);
-    await conn.sendMessage(conn.user.id, { text: error });
-  });
-}
+process.on("uncaughtException", async (err) => {
+  let error = err.message;
+  console.log(err);
+  await conn.sendMessage(conn.user.id, { text: error });
+});
 
 setTimeout(() => {
   Abhiy();
