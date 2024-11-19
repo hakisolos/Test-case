@@ -25,25 +25,31 @@ require("events").EventEmitter.defaultMaxListeners = 50;
 const { File } = require("megajs");
 
 (async function () {
-  const prefix = "Nikka-X";
-  const output = "./lib/session/";
-  const pth = output + "creds.json";
+  var prefix = "Nikka-X";
+  var output = "./lib/session/";
+  var pth = output + "creds.json";
 
   try {
+    var store = makeInMemoryStore({
+      logger: pino().child({ level: "silent", stream: "store" }),
+    });
+
+    require("events").EventEmitter.defaultMaxListeners = 50;
+
     if (!fs.existsSync(pth)) {
       if (!config.SESSION_ID.startsWith(prefix)) {
         throw new Error("Invalid session id.");
       }
 
-      const url = "https://mega.nz/file/" + config.SESSION_ID.replace(prefix, "");
-      const file = File.fromURL(url);
+      var url = "https://mega.nz/file/" + config.SESSION_ID.replace(prefix, "");
+      var file = File.fromURL(url);
       await file.loadAttributes();
 
       if (!fs.existsSync(output)) {
         fs.mkdirSync(output, { recursive: true });
       }
 
-      const data = await file.downloadBuffer();
+      var data = await file.downloadBuffer();
       fs.writeFileSync(pth, data);
     }
   } catch (error) {
@@ -61,12 +67,12 @@ async function Abhiy() {
   console.log("Syncing Database");
   await config.DATABASE.sync();
 
-  const { state } = await useMultiFileAuthState(
+  const { state, saveCreds } = await useMultiFileAuthState(
     "./lib/session",
     pino({ level: "silent" })
   );
 
-  const conn = makeWASocket({
+  let conn = makeWASocket({
     logger: pino({ level: "silent" }),
     auth: state,
     printQRInTerminal: true,
@@ -107,10 +113,10 @@ async function Abhiy() {
       console.log("ɪɴsᴛᴀʟʟɪɴɢ ᴘʟᴜɢɪɴs 📥");
 
       let plugins = await PluginDB.findAll();
-      await Promise.all(plugins.map(async (plugin) => {
+      plugins.map(async (plugin) => {
         if (!fs.existsSync("./plugins/" + plugin.dataValues.name + ".js")) {
           console.log(plugin.dataValues.name);
-          const response = await got(plugin.dataValues.url);
+          var response = await got(plugin.dataValues.url);
           if (response.statusCode === 200) {
             fs.writeFileSync(
               "./plugins/" + plugin.dataValues.name + ".js",
@@ -118,8 +124,8 @@ async function Abhiy() {
             );
             require("./plugins/" + plugin.dataValues.name + ".js");
           }
-       }
-      }));
+        }
+      });
       console.log("ᴘʟᴜɢɪɴs ɪɴsᴛᴀʟʟᴇᴅ ✅");
 
       fs.readdirSync("./plugins").forEach((plugin) => {
@@ -133,7 +139,7 @@ async function Abhiy() {
       const packageVersion = require("./package.json").version;
       const totalPlugins = events.commands.length;
       const workType = config.WORK_TYPE;
-      const statusMessage = `ɴɪᴋᴋᴀ x ᴍᴅ ᴄᴏɴɴᴇᴄᴛᴇᴅ  ✅\nᴠᴇʀsɪᴏɴ: ${packageVersion}\nᴄᴍᴅs: ${totalPlugins}\nᴡᴏʀᴋᴛʏᴘᴇ: ${workType}\n 𝗺𝗮𝗱𝗲 𝘄𝗶𝘁𝗵 ❤️ 𝗯𝘆 𝗵𝗮𝗸𝗶`;
+      const statusMessage = `ɴɪᴋᴋᴀ x ᴍᴅ ᴄᴏɴɴᴇᴄᴛᴇᴅ  ✅\nᴠᴇʀsɪᴏɴ: ${packageVersion}\nᴄᴍᴅs: ${totalPlugins}\ᴡᴏʀᴋᴛʏᴘᴇ: ${workType}\n 𝗺𝗮𝗱𝗲 𝘄𝗶𝘁𝗵 ❤️ 𝗯𝘆 𝗵𝗮𝗸𝗶`;
 
       await conn.sendMessage(conn.user.id, {
         image: { url: "https://files.catbox.moe/mnp025.jpg" },
@@ -141,124 +147,77 @@ async function Abhiy() {
       });
     }
 
-    conn.ev.on("creds.update", saveCreds);
+    try {
+      conn.ev.on("creds.update", saveCreds);
 
-    conn.ev.on("group-participants.update", async (data) => {
-      if (data.action === 'add') {
-        const groupMetadata = await conn.groupMetadata(data.id);
-        const groupName = groupMetadata.subject;
-        const newMember = data.participants[0];
-
-        await conn.sendMessage(
-          data.id,
-          {
-            text: `Welcome to *${groupName}*, @${newMember.split('@')[0]}! 🎉`,
-            mentions: [newMember],
-            contextInfo: {
-              externalAdReply: {
-                title: "ʜᴇʏ ᴘᴏᴏᴋɪᴇ",
-                body: "We hope you have a great time here.",
-                sourceUrl: "",
-                mediaUrl: "",
-                mediaType: 1,
-                showAdAttribution: true,
-                renderLargerThumbnail: false,
-                thumbnailUrl: "https://files.catbox.moe/mnp025.jpg",
-              },
-            },
-          }
-        );
-      }
-
-      if (data.action === 'remove') {
-        const groupMetadata = await conn.groupMetadata(data.id);
-        const groupName = groupMetadata.subject;
-        const leavingMember = data.participants[0];
-
-        await conn.sendMessage(
-          data.id,
-          {
-            text: `Goodbye, @${leavingMember.split('@')[0]}! 😢 You will not be missed from *${groupName}*.`,
-            mentions: [leavingMember],
-            contextInfo: {
-              externalAdReply: {
-                title: "Sorry to See You Go!",
-                body: "We hope to see you again.",
-                sourceUrl: "",
-                mediaUrl: "",
-                mediaType: 1,
-                showAdAttribution: true,
-                renderLargerThumbnail: false,
-                thumbnailUrl: "https://files.catbox.moe/mnp025.jpg",
-              },
-            },
-          }
-        );
-      }
-    });
-
-    conn.ev.on("messages.upsert", async (m) => {
-      if (m.type !== "notify") return;
-      let ms = m.messages[0];
-      let msg = await serialize(JSON.parse(JSON.stringify(ms)), conn);
-
-      if (!msg.message) return;
-
-      let text_msg = msg.body;
-      if (text_msg && config.LOGS) {
-        console.log(
-          `At : ${
-            msg.from.endsWith("@g.us")
-              ? (await conn.groupMetadata(msg.from)).subject
-              : msg.from
-          }\nFrom : ${msg.sender}\nMessage:${text_msg}`
-        );
-      }
-
-      events.commands.map(async (command) => {
-        if (
-          command.fromMe &&
-          !config.SUDO?.split(",").includes(
-            msg.sender?.split("@")[0] || !msg.isSelf
-          )
-        )
-          return;
-
-        let comman;
-        if (text_msg) {
-          comman = text_msg.trim().split(/ +/)[0];
-          msg.prefix = new RegExp(config.HANDLERS).test(text_msg)
-            ? text_msg.split("").shift()
-            : ",";
-        }
-
-        if (command.pattern && command.pattern .test(comman)) {
-          var match;
-          try {
-            match = text_msg.replace(new RegExp(comman, "i"), "").trim();
-          } catch {
-            match = false;
-          }
-
-          const whats = new Message(conn, msg, ms);
-          command.function(whats, match, msg, conn);
-        } else if (text_msg && command.on === "text") {
-          const whats = new Message(conn, msg, ms);
-          command.function(whats, text_msg, msg, conn, m);
-        }
+      conn.ev.on("group-participants.update", async (data) => {
+        Greetings(data, conn);
       });
-    });
 
-    process.on("uncaughtException", async (err) => {
-      let error = err.message;
-      console.log(err);
-      await conn.sendMessage(conn.user.id, { text: error });
-    });
+      conn.ev.removeAllListeners("messages.upsert");
+      conn.ev.on("messages.upsert", async (m) => {
+        if (m.type !== "notify") return;
+        let ms = m.messages[0];
+        let msg = await serialize(JSON.parse(JSON.stringify(ms)), conn);
 
-    setTimeout(() => {
-      Abhiy();
-    }, 3000);
-  }
+        if (!msg.message) return;
+
+        let text_msg = msg.body;
+        if (text_msg && config.LOGS) {
+          console.log(
+            `At : ${
+              msg.from.endsWith("@g.us")
+                ? (await conn.groupMetadata(msg.from)).subject
+                : msg.from
+            }\nFrom : ${msg.sender}\nMessage:${text_msg}`
+          );
+        }
+
+        events.commands.map(async (command) => {
+          if (
+            command.fromMe &&
+            !config.SUDO?.split(",").includes(
+              msg.sender?.split("@")[0] || !msg.isSelf
+            )
+          )
+            return;
+
+          let comman;
+          if (text_msg) {
+            comman = text_msg.trim().split(/ +/)[0];
+            msg.prefix = new RegExp(config.HANDLERS).test(text_msg)
+              ? text_msg.split("").shift()
+              : ",";
+          }
+
+          if (command.pattern && command.pattern.test(comman)) {
+            var match;
+            try {
+              match = text_msg.replace(new RegExp(comman, "i"), "").trim();
+            } catch {
+              match = false;
+            }
+
+            whats = new Message(conn, msg, ms);
+            command.function(whats, match, msg, conn);
+          } else if (text_msg && command.on === "text") {
+            whats = new Message(conn, msg, ms);
+            command.function(whats, text_msg, msg, conn, m);
+          }
+        });
+      });
+    } catch (e) {
+      console.log(e.stack + "\n\n\n\n\n" + JSON.stringify(msg));
+    }
+  });
+
+  process.on("uncaughtException", async (err) => {
+    let error = err.message;
+    console.log(err);
+    await conn.sendMessage(conn.user.id, { text: error });
+  });
 }
 
-Abhiy();
+setTimeout(() => {
+  Abhiy();
+}, 3000);
