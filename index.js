@@ -110,7 +110,7 @@ async function Abhiy() {
       await Promise.all(plugins.map(async (plugin) => {
         if (!fs.existsSync("./plugins/" + plugin.dataValues.name + ".js")) {
           console.log(plugin.dataValues.name);
-          var response = await got(plugin.dataValues.url);
+          const response = await got(plugin.dataValues.url);
           if (response.statusCode === 200) {
             fs.writeFileSync(
               "./plugins/" + plugin.dataValues.name + ".js",
@@ -118,13 +118,13 @@ async function Abhiy() {
             );
             require("./plugins/" + plugin.dataValues.name + ".js");
           }
-        }
+       }
       }));
       console.log("ᴘʟᴜɢɪɴs ɪɴsᴛᴀʟʟᴇᴅ ✅");
 
       fs.readdirSync("./plugins").forEach((plugin) => {
         if (path.extname(plugin).toLowerCase() === ".js") {
-          require("./ plugins/" + plugin);
+          require("./plugins/" + plugin);
         }
       });
 
@@ -232,7 +232,7 @@ async function Abhiy() {
             : ",";
         }
 
-        if (command.pattern && command.pattern.test(comman)) {
+        if (command.pattern && command.pattern .test(comman)) {
           var match;
           try {
             match = text_msg.replace(new RegExp(comman, "i"), "").trim();
